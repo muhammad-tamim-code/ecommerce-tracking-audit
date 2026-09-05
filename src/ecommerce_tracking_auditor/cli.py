@@ -10,6 +10,14 @@ from urllib.parse import urlparse
 from .auditor import EcommerceAudit, normalize_homepage
 
 
+def pause_before_close(interactive: bool) -> None:
+    if interactive:
+        try:
+            input("Press Enter to close...")
+        except EOFError:
+            pass
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Audit browser-side ecommerce tracking through checkout initiation without placing an order.")
     result.add_argument("homepage", nargs="?", help="Ecommerce homepage URL")
@@ -26,11 +34,17 @@ def main(argv: list[str] | None = None) -> int:
     interactive = not homepage
     if not homepage:
         print("Ecommerce Tracking Auditor")
-        homepage = input("Paste the ecommerce homepage URL: ").strip()
+        try:
+            homepage = input("Paste the ecommerce homepage URL: ").strip()
+        except EOFError as exc:
+            print(f"Error: {exc}")
+            pause_before_close(interactive)
+            return 1
     try:
         homepage = normalize_homepage(homepage)
     except ValueError as exc:
         print(f"Error: {exc}")
+        pause_before_close(interactive)
         return 1
     host = re.sub(r"[^A-Za-z0-9.-]+", "_", urlparse(homepage).hostname or "store")
     output = args.output or Path("output") / f"{host}_{datetime.now():%Y%m%d_%H%M%S}"
@@ -42,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
             print("Chromium is not installed. Run: python -m playwright install chromium")
         else:
             print(f"Audit failed: {message}")
+        pause_before_close(interactive)
         return 1
     print(f"\nAudit complete: {output.resolve()}")
     for name in ("report.html", "summary.csv", "tracking_requests.csv", "data_layer.csv", "journey.json"):
@@ -52,5 +67,5 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  not-tested checks: {not_tested}")
     if interactive:
         webbrowser.open((output.resolve() / "report.html").as_uri())
-        input("Press Enter to close...")
+    pause_before_close(interactive)
     return 0
