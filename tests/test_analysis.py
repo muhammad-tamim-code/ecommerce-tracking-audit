@@ -32,6 +32,18 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(keyed[("checkout", "ga4")], "request_missing")
         self.assertEqual(keyed[("cart", "meta")], "request_missing")
 
+    def test_matching_request_note_shows_network_evidence(self):
+        steps = [{"stage": stage, "reached": True} for stage in ("homepage", "product", "cart", "checkout")]
+        requests = [{
+            "stage": "product", "provider": "meta", "event": "ViewContent",
+            "destination_id": "12345", "method": "POST", "host": "www.facebook.com",
+            "path": "/tr/", "response_status": 200,
+        }]
+        row = next(item for item in evaluate(steps, requests) if item["stage"] == "product" and item["provider"] == "meta")
+        self.assertEqual(row["status"], "passed")
+        self.assertIn("POST ViewContent request for ID 12345", row["note"])
+        self.assertIn("HTTP 200", row["note"])
+
     def test_event_on_wrong_stage_does_not_pass(self):
         steps = [{"stage": stage, "reached": True} for stage in ("homepage", "product", "cart", "checkout")]
         requests = [{"stage": "homepage", "provider": "ga4", "event": "view_item"}]

@@ -150,6 +150,7 @@ class EcommerceAudit:
         self.timeout_ms = timeout_ms
         self.current_stage = "startup"
         self.requests: list[dict[str, Any]] = []
+        self.request_records: dict[Any, dict[str, Any]] = {}
         self.data_layer_pushes: list[dict[str, Any]] = []
         self.steps: list[dict[str, Any]] = []
         self.actions: list[dict[str, Any]] = []
@@ -181,6 +182,8 @@ class EcommerceAudit:
                 context.add_init_script(DATA_LAYER_HOOK)
                 page = context.new_page()
                 page.on("request", self._record_request)
+                page.on("response", self._record_response)
+                page.on("requestfailed", self._record_request_failure)
                 self._run_journey(page)
             finally:
                 browser.close()
@@ -213,7 +216,7 @@ class EcommerceAudit:
         if provider == "meta" and not destination:
             config_match = re.search(r"/signals/config/(\d+)", parsed.path)
             destination = config_match.group(1) if config_match else ""
-        self.requests.append({
+        record = {
             "timestamp_ms": int(time.time() * 1000),
             "stage": self.current_stage,
             "provider": provider,
@@ -224,7 +227,24 @@ class EcommerceAudit:
             "path": parsed.path,
             "url": safe_url,
             "params": params,
-        })
+            "response_status": "",
+            "failure": "",
+        }
+        self.requests.append(record)
+        self.request_records[request] = record
+
+    def _record_response(self, response) -> None:
+        record = self.request_records.get(response.request)
+        if record is not None:
+            record["response_status"] = response.status
+
+    def _record_request_failure(self, request) -> None:
+        record = self.request_records.get(request)
+        if record is not None:
+            try:
+                record["failure"] = request.failure or "Request failed"
+            except Exception:
+                record["failure"] = "Request failed"
 
     def _goto(self, page: Page, url: str) -> bool:
         try:

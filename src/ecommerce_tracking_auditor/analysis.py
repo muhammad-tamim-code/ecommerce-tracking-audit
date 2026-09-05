@@ -63,7 +63,16 @@ def evaluate(steps: list[dict[str, Any]], requests: list[dict[str, Any]]) -> lis
                 note = f"The {stage} stage was not reached."
             elif observed:
                 status = "passed"
-                note = f"Observed {len(observed)} matching request(s) during the {stage} stage."
+                sample = observed[0]
+                endpoint = f"{sample.get('host', '')}{sample.get('path', '')}"
+                destination = sample.get("destination_id", "")
+                response_status = sample.get("response_status", "")
+                response_text = f" The provider returned HTTP {response_status}." if response_status else " No response status was captured."
+                destination_text = f" for ID {destination}" if destination else ""
+                note = (
+                    f"The browser sent {sample.get('method', 'a')} {expected} request{destination_text} "
+                    f"to {endpoint}.{response_text}"
+                )
             elif provider in installed:
                 status = "request_missing"
                 if trigger_count:
@@ -72,7 +81,10 @@ def evaluate(steps: list[dict[str, Any]], requests: list[dict[str, Any]]) -> lis
                     note = f"The provider was found, but no {expected} event request was observed."
             elif gtm_loaded and trigger_count:
                 status = "data_layer_only"
-                note = f"GTM and the {trigger} dataLayer event were found, but no {PROVIDER_NAMES[provider]} request was observed."
+                note = (
+                    f"The website added {trigger} to dataLayer, but no standard {PROVIDER_NAMES[provider]} "
+                    "network request was captured. This does not prove the provider received the event."
+                )
             else:
                 status = "not_observed"
                 note = f"No {PROVIDER_NAMES[provider]} request or matching dataLayer evidence was observed."
@@ -101,22 +113,26 @@ def write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str] | None =
 
 def status_label(value: str) -> str:
     return {
-        "passed": "Passed",
+        "passed": "Request observed",
         "request_missing": "Request missing",
-        "data_layer_only": "Data layer only",
+        "data_layer_only": "Trigger found, request not found",
         "not_observed": "Not observed",
         "not_tested": "Not tested",
     }.get(value, value.replace("_", " ").title())
 
 
 def render_report(homepage: str, steps: list[dict[str, Any]], requests: list[dict[str, Any]], checks: list[dict[str, Any]]) -> str:
+    observed_requests = sum(row["status"] == "passed" for row in checks)
     missing_requests = sum(row["status"] in {"request_missing", "data_layer_only"} for row in checks)
     not_observed = sum(row["status"] == "not_observed" for row in checks)
     incomplete = any(row["status"] == "not_tested" for row in checks)
     if incomplete:
         conclusion = "The journey was incomplete. Unreached stages are marked Not tested."
     elif missing_requests:
-        conclusion = f"The journey and dataLayer worked, but {missing_requests} provider event request(s) were not verified."
+        conclusion = (
+            f"The browser captured {observed_requests} expected provider request(s). "
+            f"It did not capture {missing_requests} expected provider request(s)."
+        )
     elif not_observed:
         conclusion = f"The completed journey had {not_observed} check(s) without enough tracking evidence."
     else:
@@ -165,7 +181,9 @@ code{{font-size:13px}} .status{{font-weight:700;white-space:nowrap}} .passed{{co
 <h1>Ecommerce tracking audit</h1><p class="meta">Homepage: {html.escape(homepage)}</p>
 <p class="lead">{html.escape(conclusion)}</p>
 <h2>Journey coverage</h2><table><thead><tr><th>Stage</th><th>Result</th><th>URL</th><th>Note</th></tr></thead><tbody>{step_rows}</tbody></table>
-<h2>Expected event checks</h2><table><thead><tr><th>Stage</th><th>Provider</th><th>DataLayer trigger</th><th>Provider event</th><th>Status</th><th>Evidence</th></tr></thead><tbody>{check_rows}</tbody></table>
+<h2>How to read this</h2>
+<p>A website event in <code>dataLayer</code> is an instruction waiting for a tag manager. It does not prove GA4 or Meta received it. A provider request is a separate network call made by the browser. Response status shows whether the provider's server answered that call.</p>
+<h2>Expected event checks</h2><table><thead><tr><th>Stage</th><th>Provider</th><th>Website event</th><th>Expected request event</th><th>Status</th><th>Captured evidence</th></tr></thead><tbody>{check_rows}</tbody></table>
 <h2>Observed providers</h2><table><thead><tr><th>Provider</th><th>Recognized requests</th></tr></thead><tbody>{provider_rows}</tbody></table>
 <h2>Evidence files</h2><ul>{screenshot_items}<li><a href="summary.csv">Expected-event checks CSV</a></li><li><a href="tracking_requests.csv">Recognized tracking requests CSV</a></li><li><a href="data_layer.csv">Captured dataLayer pushes CSV</a></li><li><a href="journey.json">Complete structured evidence JSON</a></li></ul>
 <footer>This automated report covers browser-side signals through checkout initiation. It does not submit an order, validate purchase events, or prove that server-side events reached an advertising platform.</footer>
@@ -175,7 +193,7 @@ code{{font-size:13px}} .status{{font-weight:700;white-space:nowrap}} .passed{{co
 def save_outputs(output_dir: Path, homepage: str, steps: list[dict[str, Any]], requests: list[dict[str, Any]], actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     checks = evaluate(steps, requests)
     write_csv(output_dir / "summary.csv", checks)
-    request_fields = ["timestamp_ms", "stage", "provider", "event", "destination_id", "method", "host", "path", "url"]
+    request_fields = ["timestamp_ms", "stage", "provider", "event", "destination_id", "method", "host", "path", "response_status", "failure", "url"]
     write_csv(output_dir / "tracking_requests.csv", requests, request_fields)
     data_layer_rows = [
         {

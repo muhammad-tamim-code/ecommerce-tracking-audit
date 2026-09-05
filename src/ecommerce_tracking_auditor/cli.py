@@ -71,9 +71,11 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("report.html", "summary.csv", "tracking_requests.csv", "data_layer.csv", "journey.json"):
         print(f"  {name}")
     missing_requests = sum(row["status"] in {"request_missing", "data_layer_only"} for row in checks)
+    observed_requests = sum(row["status"] == "passed" for row in checks)
     not_tested = sum(row["status"] == "not_tested" for row in checks)
-    print(f"  provider requests not verified: {missing_requests}")
-    print(f"  not-tested checks: {not_tested}")
+    print(f"  expected provider requests observed: {observed_requests}")
+    print(f"  expected provider requests not observed: {missing_requests}")
+    print(f"  journey checks not tested: {not_tested}")
     if not args.no_open:
         print(f"  Opening report: {report_path}")
         webbrowser.open(report_path.as_uri())

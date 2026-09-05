@@ -57,7 +57,8 @@ ecommerce-tracking-auditor https://example-store.com --product https://example-s
 
 - `passed` means the event was found at the right step.
 - `request_missing` means the provider was found, but its event request was not seen.
-- `data_layer_only` means GTM and the dataLayer event were found, but the provider request was not seen.
+- `data_layer_only` means the website placed an event in its dataLayer, but the browser did not send a standard request to that provider. A dataLayer event is an instruction for the tag manager. It is not proof that GA4 or Meta received the event.
+- `passed` means the browser sent the expected provider request. The report also records the provider's HTTP response when one is available.
 - `not_observed` means the tool did not find enough tracking evidence.
 - `not_tested` means the tool could not reach that step.
 
