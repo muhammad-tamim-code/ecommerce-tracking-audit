@@ -45,6 +45,24 @@ def redact(params: dict[str, list[str]]) -> dict[str, list[str]]:
     return {key: (["[REDACTED]"] if sensitive_key(key) and any(values) else values) for key, values in params.items()}
 
 
+def parse_request_params(url: str, post_data: str = "") -> dict[str, list[str]]:
+    """Read query, URL encoded, and multipart form values from a request."""
+    params = parse_qs(urlparse(url).query, keep_blank_values=True)
+    if not post_data:
+        return params
+    if "Content-Disposition: form-data" in post_data:
+        for key, value in re.findall(
+            r'Content-Disposition:\s*form-data;\s*name="([^"]+)"[^\r\n]*\r?\n\r?\n(.*?)(?=\r?\n--)',
+            post_data,
+            flags=re.DOTALL | re.IGNORECASE,
+        ):
+            params.setdefault(key, []).append(value)
+    elif "=" in post_data:
+        for key, values in parse_qs(post_data, keep_blank_values=True).items():
+            params.setdefault(key, []).extend(values)
+    return params
+
+
 def classified_provider(url: str) -> str:
     parsed = urlparse(url)
     host, path = parsed.netloc.lower(), parsed.path.lower()
@@ -113,6 +131,14 @@ def same_site(url: str, homepage: str) -> bool:
     return left == right
 
 
+def normal_chrome_user_agent(browser_version: str) -> str:
+    return (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        f"Chrome/{browser_version} Safari/537.36"
+    )
+
+
 class EcommerceAudit:
     def __init__(self, homepage: str, output_dir: Path, product_url: str = "", headed: bool = False, timeout_ms: int = 45000):
         self.homepage = normalize_homepage(homepage)
@@ -144,7 +170,11 @@ class EcommerceAudit:
                     + " | ".join(launch_errors)
                 )
             try:
-                context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="en-GB")
+                context = browser.new_context(
+                    viewport={"width": 1440, "height": 900},
+                    locale="en-GB",
+                    user_agent=normal_chrome_user_agent(browser.version),
+                )
                 context.expose_binding("__trackingAuditRecord", self._record_data_layer_push)
                 context.add_init_script(DATA_LAYER_HOOK)
                 page = context.new_page()
@@ -171,13 +201,11 @@ class EcommerceAudit:
             post_data = request.post_data or ""
         except Exception:
             post_data = ""
-        params = parse_qs(urlparse(request.url).query, keep_blank_values=True)
-        if post_data and "=" in post_data and "multipart/form-data" not in post_data:
-            for key, values in parse_qs(post_data, keep_blank_values=True).items():
-                params.setdefault(key, []).extend(values)
-        params = redact(params)
+        raw_params = parse_request_params(request.url, post_data)
+        params = redact(raw_params)
         parsed = urlparse(request.url)
-        safe_pairs = [(key, value) for key, values in params.items() for value in values]
+        safe_query = redact(parse_qs(parsed.query, keep_blank_values=True))
+        safe_pairs = [(key, value) for key, values in safe_query.items() for value in values]
         safe_url = urlunparse(parsed._replace(query=urlencode(safe_pairs, doseq=True)))
         destination = destination_id(provider, params)
         if provider == "meta" and not destination:

@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ecommerce_tracking_auditor.analysis import evaluate, render_report
-from ecommerce_tracking_auditor.auditor import classified_provider, redact
+from ecommerce_tracking_auditor.auditor import classified_provider, normal_chrome_user_agent, parse_request_params, redact
 
 
 class AnalysisTests(unittest.TestCase):
@@ -59,6 +59,29 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(classified_provider("https://www.facebook.com/tr/?ev=ViewContent"), "meta")
         self.assertEqual(classified_provider("https://connect.facebook.net/en_US/fbevents.js"), "meta")
         self.assertEqual(redact({"em": ["a@example.com"], "en": ["view_item"]})["em"], ["[REDACTED]"])
+
+    def test_audit_user_agent_does_not_identify_as_headless(self):
+        user_agent = normal_chrome_user_agent("143.0.0.0")
+        self.assertIn("Chrome/143.0.0.0", user_agent)
+        self.assertNotIn("HeadlessChrome", user_agent)
+
+    def test_meta_multipart_event_fields_are_parsed(self):
+        body = (
+            "------WebKitFormBoundary123\r\n"
+            'Content-Disposition: form-data; name="id"\r\n\r\n'
+            "1023841666963509\r\n"
+            "------WebKitFormBoundary123\r\n"
+            'Content-Disposition: form-data; name="ev"\r\n\r\n'
+            "ViewContent\r\n"
+            "------WebKitFormBoundary123\r\n"
+            'Content-Disposition: form-data; name="cd[value]"\r\n\r\n'
+            "19.99\r\n"
+            "------WebKitFormBoundary123--\r\n"
+        )
+        params = parse_request_params("https://www.facebook.com/tr/", body)
+        self.assertEqual(params["id"], ["1023841666963509"])
+        self.assertEqual(params["ev"], ["ViewContent"])
+        self.assertEqual(params["cd[value]"], ["19.99"])
 
     def test_static_report_explains_scope(self):
         steps = [{"stage": "product", "reached": False, "url": "", "note": "No product", "screenshot": ""}]
