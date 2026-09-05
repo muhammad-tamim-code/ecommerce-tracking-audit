@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecommerce-tracking-auditor"
+version = "0.1.0"
+description = "Audit browser-side ecommerce tracking from homepage through checkout initiation."
+requires-python = ">=3.11"
+dependencies = ["playwright>=1.50"]
+license = {text = "MIT"}
+authors = [{name = "Muhammad Tamim"}]
+
+[project.scripts]
+ecommerce-tracking-auditor = "ecommerce_tracking_auditor.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

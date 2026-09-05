@@ -1,0 +1,19 @@
+name: build-windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -e . -r requirements-dev.txt
+      - run: python -m PyInstaller --noconfirm --clean --onefile --name ecommerce-tracking-auditor --collect-all playwright --paths src run.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ecommerce-tracking-auditor-windows
+          path: dist/ecommerce-tracking-auditor.exe
