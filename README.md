@@ -31,11 +31,15 @@ ecommerce-tracking-auditor
 
 The tool will ask for the store homepage URL.
 
+The HTML report opens in your browser when the audit is done. The file names shown in the terminal are output information. Do not type those lines back into PowerShell.
+
 You can also give the URL in the command:
 
 ```powershell
 ecommerce-tracking-auditor https://example-store.com
 ```
+
+Use `--no-open` if you do not want the report to open by itself.
 
 Show the browser while the test runs:
 
