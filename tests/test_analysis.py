@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ecommerce_tracking_auditor.analysis import evaluate, render_report
-from ecommerce_tracking_auditor.auditor import classified_provider, normal_chrome_user_agent, parse_request_params, redact
+from ecommerce_tracking_auditor.auditor import classified_provider, normal_chrome_user_agent, normalize_homepage, parse_request_params, redact
 
 
 class AnalysisTests(unittest.TestCase):
@@ -64,6 +64,10 @@ class AnalysisTests(unittest.TestCase):
         user_agent = normal_chrome_user_agent("143.0.0.0")
         self.assertIn("Chrome/143.0.0.0", user_agent)
         self.assertNotIn("HeadlessChrome", user_agent)
+
+    def test_report_text_is_not_accepted_as_a_homepage(self):
+        with self.assertRaisesRegex(ValueError, "Paste only the website URL"):
+            normalize_homepage("Ecommerce tracking audit")
 
     def test_meta_multipart_event_fields_are_parsed(self):
         body = (

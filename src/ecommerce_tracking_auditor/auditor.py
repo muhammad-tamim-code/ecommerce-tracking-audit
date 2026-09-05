@@ -117,11 +117,13 @@ def destination_id(provider: str, params: dict[str, list[str]]) -> str:
 
 def normalize_homepage(value: str) -> str:
     value = value.strip()
+    if not value or any(character.isspace() for character in value):
+        raise ValueError("Paste only the website URL, for example: https://example.com")
     if not urlparse(value).scheme:
         value = "https://" + value
     parsed = urlparse(value)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("Enter a valid ecommerce homepage URL.")
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        raise ValueError("Paste only the website URL, for example: https://example.com")
     return urlunparse(parsed._replace(path=parsed.path or "/", query="", fragment="")).rstrip("/")
 
 

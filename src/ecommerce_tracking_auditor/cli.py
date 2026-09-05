@@ -33,20 +33,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     homepage = args.homepage
     interactive = not homepage
-    if not homepage:
+    if interactive:
         print("Ecommerce Tracking Auditor")
+        print("Paste only one website URL. Do not paste text from a report.")
+        while True:
+            try:
+                homepage = input("Website URL: ").strip()
+            except EOFError as exc:
+                print(f"Error: {exc}")
+                pause_before_close(interactive)
+                return 1
+            try:
+                homepage = normalize_homepage(homepage)
+                break
+            except ValueError as exc:
+                print(f"Invalid input: {exc}")
+    else:
         try:
-            homepage = input("Paste the ecommerce homepage URL: ").strip()
-        except EOFError as exc:
+            homepage = normalize_homepage(homepage)
+        except ValueError as exc:
             print(f"Error: {exc}")
-            pause_before_close(interactive)
             return 1
-    try:
-        homepage = normalize_homepage(homepage)
-    except ValueError as exc:
-        print(f"Error: {exc}")
-        pause_before_close(interactive)
-        return 1
     host = re.sub(r"[^A-Za-z0-9.-]+", "_", urlparse(homepage).hostname or "store")
     output = args.output or Path("output") / f"{host}_{datetime.now():%Y%m%d_%H%M%S}"
     try:
@@ -67,8 +74,10 @@ def main(argv: list[str] | None = None) -> int:
     not_tested = sum(row["status"] == "not_tested" for row in checks)
     print(f"  provider requests not verified: {missing_requests}")
     print(f"  not-tested checks: {not_tested}")
-    print(f"  Opening report: {report_path}")
     if not args.no_open:
+        print(f"  Opening report: {report_path}")
         webbrowser.open(report_path.as_uri())
+    else:
+        print(f"  Report: {report_path}")
     pause_before_close(interactive)
     return 0
