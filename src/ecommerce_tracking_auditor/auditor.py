@@ -54,7 +54,9 @@ def classified_provider(url: str) -> str:
         return "google_tag"
     if "google-analytics.com" in host or path.endswith("/g/collect"):
         return "ga4"
-    if "facebook.com" in host and path.rstrip("/").endswith("/tr"):
+    if "connect.facebook.net" in host:
+        return "meta"
+    if "facebook.com" in host and (path.rstrip("/").endswith("/tr") or path.rstrip("/").endswith("/events")):
         return "meta"
     if "googleadservices.com" in host or "googleads.g.doubleclick.net" in host or "/pagead/conversion" in path:
         return "google_ads"
@@ -77,7 +79,11 @@ def event_name(provider: str, params: dict[str, list[str]], path: str) -> str:
     if provider == "ga4":
         return first(params, "en")
     if provider == "meta":
-        return first(params, "ev")
+        if first(params, "ev"):
+            return first(params, "ev")
+        if path.endswith("fbevents.js") or "/signals/config/" in path:
+            return "base_code"
+        return first(params, "event") or first(params, "event_name")
     if provider == "google_ads" and "conversion" in path:
         return "conversion"
     return first(params, "event") or first(params, "event_name")
@@ -173,12 +179,16 @@ class EcommerceAudit:
         parsed = urlparse(request.url)
         safe_pairs = [(key, value) for key, values in params.items() for value in values]
         safe_url = urlunparse(parsed._replace(query=urlencode(safe_pairs, doseq=True)))
+        destination = destination_id(provider, params)
+        if provider == "meta" and not destination:
+            config_match = re.search(r"/signals/config/(\d+)", parsed.path)
+            destination = config_match.group(1) if config_match else ""
         self.requests.append({
             "timestamp_ms": int(time.time() * 1000),
             "stage": self.current_stage,
             "provider": provider,
             "event": event_name(provider, params, parsed.path),
-            "destination_id": destination_id(provider, params),
+            "destination_id": destination,
             "method": request.method,
             "host": parsed.netloc,
             "path": parsed.path,

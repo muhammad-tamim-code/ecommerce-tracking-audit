@@ -66,7 +66,7 @@ class AuditorIntegrationTests(unittest.TestCase):
                 self.assertEqual({row["stage"] for row in data_layer}, {"product", "checkout"})
                 self.assertTrue(any("view_item" in row["value_json"] for row in data_layer))
                 report = (output / "report.html").read_text(encoding="utf-8")
-                self.assertIn("The completed journey produced no missing expected-event findings", report)
+                self.assertIn("The completed journey had 3 check(s) without enough tracking evidence", report)
         finally:
             server.shutdown()
             server.server_close()

@@ -52,8 +52,9 @@ ecommerce-tracking-auditor https://example-store.com --product https://example-s
 ## Result types
 
 - `passed` means the event was found at the right step.
-- `failed` means the tracking provider was found, but the event was missing.
-- `not_configured` means the provider was not found.
+- `request_missing` means the provider was found, but its event request was not seen.
+- `data_layer_only` means GTM and the dataLayer event were found, but the provider request was not seen.
+- `not_observed` means the tool did not find enough tracking evidence.
 - `not_tested` means the tool could not reach that step.
 
 ## Make a Windows EXE

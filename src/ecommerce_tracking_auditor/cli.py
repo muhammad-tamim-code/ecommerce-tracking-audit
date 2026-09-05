@@ -61,9 +61,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nAudit complete: {output.resolve()}")
     for name in ("report.html", "summary.csv", "tracking_requests.csv", "data_layer.csv", "journey.json"):
         print(f"  {name}")
-    failed = sum(row["status"] == "failed" for row in checks)
+    missing_requests = sum(row["status"] in {"request_missing", "data_layer_only"} for row in checks)
     not_tested = sum(row["status"] == "not_tested" for row in checks)
-    print(f"  failed checks: {failed}")
+    print(f"  provider requests not verified: {missing_requests}")
     print(f"  not-tested checks: {not_tested}")
     if interactive:
         webbrowser.open((output.resolve() / "report.html").as_uri())

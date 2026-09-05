@@ -29,24 +29,35 @@ class AnalysisTests(unittest.TestCase):
         checks = evaluate(steps, requests)
         keyed = {(row["stage"], row["provider"]): row["status"] for row in checks}
         self.assertEqual(keyed[("product", "ga4")], "passed")
-        self.assertEqual(keyed[("checkout", "ga4")], "failed")
-        self.assertEqual(keyed[("cart", "meta")], "failed")
+        self.assertEqual(keyed[("checkout", "ga4")], "request_missing")
+        self.assertEqual(keyed[("cart", "meta")], "request_missing")
 
     def test_event_on_wrong_stage_does_not_pass(self):
         steps = [{"stage": stage, "reached": True} for stage in ("homepage", "product", "cart", "checkout")]
         requests = [{"stage": "homepage", "provider": "ga4", "event": "view_item"}]
         checks = evaluate(steps, requests)
         keyed = {(row["stage"], row["provider"]): row["status"] for row in checks}
-        self.assertEqual(keyed[("product", "ga4")], "failed")
+        self.assertEqual(keyed[("product", "ga4")], "request_missing")
 
-    def test_absent_provider_is_not_configured(self):
+    def test_absent_provider_is_not_observed(self):
         steps = [{"stage": stage, "reached": True} for stage in ("homepage", "product", "cart", "checkout")]
         checks = evaluate(steps, [])
-        self.assertTrue(all(row["status"] == "not_configured" for row in checks))
+        self.assertTrue(all(row["status"] == "not_observed" for row in checks))
+
+    def test_gtm_and_data_layer_do_not_claim_provider_is_missing(self):
+        steps = [
+            {"stage": "homepage", "reached": True, "data_layer_pushes": []},
+            {"stage": "product", "reached": True, "data_layer_pushes": [{"value": {"event": "view_item"}}]},
+            {"stage": "cart", "reached": True, "data_layer_pushes": [{"value": {"event": "add_to_cart"}}]},
+            {"stage": "checkout", "reached": True, "data_layer_pushes": [{"value": {"event": "begin_checkout"}}]},
+        ]
+        checks = evaluate(steps, [{"stage": "homepage", "provider": "gtm", "event": ""}])
+        self.assertTrue(all(row["status"] == "data_layer_only" for row in checks))
 
     def test_provider_classification_and_redaction(self):
         self.assertEqual(classified_provider("https://www.google-analytics.com/g/collect?en=view_item"), "ga4")
         self.assertEqual(classified_provider("https://www.facebook.com/tr/?ev=ViewContent"), "meta")
+        self.assertEqual(classified_provider("https://connect.facebook.net/en_US/fbevents.js"), "meta")
         self.assertEqual(redact({"em": ["a@example.com"], "en": ["view_item"]})["em"], ["[REDACTED]"])
 
     def test_static_report_explains_scope(self):
